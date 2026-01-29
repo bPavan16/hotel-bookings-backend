@@ -1,0 +1,247 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: hotel-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hoteluser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotelpass}
+      POSTGRES_DB: hotel_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hoteluser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: hotel-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper (Required for Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: hotel-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - hotel-network
+
+  # Kafka Message Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: hotel-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: hotel-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - USER_SERVICE_URL=http://user-service:3001
+      - HOTEL_SERVICE_URL=http://hotel-service:3002
+      - BOOKING_SERVICE_URL=http://booking-service:3003
+      - PAYMENT_SERVICE_URL=http://payment-service:3004
+    depends_on:
+      - user-service
+      - hotel-service
+      - booking-service
+    networks:
+      - hotel-network
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules
+
+  # User Service
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: hotel-user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-hoteluser}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-hotelpass}
+      - DB_NAME=hotel_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hotel-network
+    volumes:
+      - ./services/user-service:/app
+      - /app/node_modules
+
+  # Hotel Service
+  hotel-service:
+    build:
+      context: ./services/hotel-service
+      dockerfile: Dockerfile
+    container_name: hotel-hotel-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-hoteluser}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-hotelpass}
+      - DB_NAME=hotel_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hotel-network
+    volumes:
+      - ./services/hotel-service:/app
+      - /app/node_modules
+
+  # Booking Service
+  booking-service:
+    build:
+      context: ./services/booking-service
+      dockerfile: Dockerfile
+    container_name: hotel-booking-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-hoteluser}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-hotelpass}
+      - DB_NAME=hotel_db
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hotel-network
+    volumes:
+      - ./services/booking-service:/app
+      - /app/node_modules
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: hotel-payment-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-hoteluser}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-hotelpass}
+      - DB_NAME=hotel_db
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - hotel-network
+    volumes:
+      - ./services/payment-service:/app
+      - /app/node_modules
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: hotel-notification-service
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - KAFKA_BROKER=kafka:9092
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-your-email@gmail.com}
+      - SMTP_PASS=${SMTP_PASS:-your-app-password}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - hotel-network
+    volumes:
+      - ./services/notification-service:/app
+      - /app/node_modules
+
+networks:
+  hotel-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
