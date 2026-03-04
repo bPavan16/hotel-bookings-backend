@@ -1,9 +1,9 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const Joi = require('joi');
-const { pool } = require('../config/database');
-const { generateToken } = require('../middleware/auth');
-const { getRedisClient } = require('../config/redis');
+import express from "express";
+import bcrypt from "bcryptjs";
+import Joi from "joi";
+import { pool } from "../config/database.js";
+import { generateToken } from "../middleware/auth.js";
+import { getRedisClient } from "../config/redis.js";
 
 const router = express.Router();
 
@@ -13,16 +13,16 @@ const registerSchema = Joi.object({
   password: Joi.string().min(6).required(),
   firstName: Joi.string().min(2).required(),
   lastName: Joi.string().min(2).required(),
-  phone: Joi.string().optional()
+  phone: Joi.string().optional(),
 });
 
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
-  password: Joi.string().required()
+  password: Joi.string().required(),
 });
 
 // Register new user
-router.post('/register', async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
     const { error, value } = registerSchema.validate(req.body);
     if (error) {
@@ -33,12 +33,12 @@ router.post('/register', async (req, res) => {
 
     // Check if user already exists
     const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
+      "SELECT id FROM users WHERE email = $1",
+      [email],
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ error: "User already exists" });
     }
 
     // Hash password
@@ -47,38 +47,38 @@ router.post('/register', async (req, res) => {
     // Create user
     const result = await pool.query(
       `INSERT INTO users (email, password, first_name, last_name, phone) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING id, email, first_name, last_name, phone, role, created_at`,
-      [email, hashedPassword, firstName, lastName, phone]
+      VALUES ($1, $2, $3, $4, $5) 
+      RETURNING id, email, first_name, last_name, phone, role, created_at`,
+      [email, hashedPassword, firstName, lastName, phone],
     );
 
     const user = result.rows[0];
-    const token = generateToken({ 
-      id: user.id, 
-      email: user.email, 
-      role: user.role 
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
     });
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: "User registered successfully",
       user: {
         id: user.id,
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
         phone: user.phone,
-        role: user.role
+        role: user.role,
       },
-      token
+      token,
     });
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Failed to register user' });
+    console.error("Register error:", error);
+    res.status(500).json({ error: "Failed to register user" });
   }
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { error, value } = loginSchema.validate(req.body);
     if (error) {
@@ -88,13 +88,12 @@ router.post('/login', async (req, res) => {
     const { email, password } = value;
 
     // Find user
-    const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email]
-    );
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const user = result.rows[0];
@@ -102,14 +101,14 @@ router.post('/login', async (req, res) => {
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     // Generate token
-    const token = generateToken({ 
-      id: user.id, 
-      email: user.email, 
-      role: user.role 
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
     });
 
     // Cache user session in Redis
@@ -120,41 +119,41 @@ router.post('/login', async (req, res) => {
       JSON.stringify({
         id: user.id,
         email: user.email,
-        role: user.role
-      })
+        role: user.role,
+      }),
     );
 
     res.json({
-      message: 'Login successful',
+      message: "Login successful",
       user: {
         id: user.id,
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role
+        role: user.role,
       },
-      token
+      token,
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Failed to login' });
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Failed to login" });
   }
 });
 
 // Logout
-router.post('/logout', async (req, res) => {
+router.post("/logout", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith("Bearer ")) {
       // In a production app, you'd want to blacklist the token
-      res.json({ message: 'Logout successful' });
+      res.json({ message: "Logout successful" });
     } else {
-      res.status(400).json({ error: 'No token provided' });
+      res.status(400).json({ error: "No token provided" });
     }
   } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ error: 'Failed to logout' });
+    console.error("Logout error:", error);
+    res.status(500).json({ error: "Failed to logout" });
   }
 });
 
-module.exports = router;
+export default router;

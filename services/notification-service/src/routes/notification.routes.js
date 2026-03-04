@@ -1,6 +1,6 @@
-const express = require('express');
-const Joi = require('joi');
-const { sendEmail } = require('../services/email.service');
+import express from 'express';
+import Joi from 'joi';
+import { sendEmail } from '../services/email.service.js';
 
 const router = express.Router();
 
@@ -45,4 +45,4 @@ router.post('/send', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

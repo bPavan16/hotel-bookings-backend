@@ -1,7 +1,7 @@
-const express = require('express');
-const Joi = require('joi');
-const { pool } = require('../config/database');
-const { getRedisClient } = require('../config/redis');
+import express from "express";
+import Joi from "joi";
+import { pool } from "../config/database.js";
+import { getRedisClient } from "../config/redis.js";
 
 const router = express.Router();
 
@@ -16,7 +16,7 @@ const hotelSchema = Joi.object({
   country: Joi.string().required(),
   rating: Joi.number().min(0).max(5).optional(),
   amenities: Joi.array().items(Joi.string()).optional(),
-  images: Joi.array().items(Joi.string()).optional()
+  images: Joi.array().items(Joi.string()).optional(),
 });
 
 const roomSchema = Joi.object({
@@ -27,16 +27,16 @@ const roomSchema = Joi.object({
   capacity: Joi.number().integer().positive().required(),
   amenities: Joi.array().items(Joi.string()).optional(),
   images: Joi.array().items(Joi.string()).optional(),
-  isAvailable: Joi.boolean().optional()
+  isAvailable: Joi.boolean().optional(),
 });
 
 // Get all hotels with optional filtering
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { city, country, minRating, page = 1, limit = 10 } = req.query;
-    
-    const cacheKey = `hotels:${city || 'all'}:${country || 'all'}:${minRating || 'all'}:${page}:${limit}`;
-    
+
+    const cacheKey = `hotels:${city || "all"}:${country || "all"}:${minRating || "all"}:${page}:${limit}`;
+
     // Check cache
     const redis = getRedisClient();
     const cached = await redis.get(cacheKey);
@@ -44,7 +44,7 @@ router.get('/', async (req, res) => {
       return res.json(JSON.parse(cached));
     }
 
-    let query = 'SELECT * FROM hotels WHERE 1=1';
+    let query = "SELECT * FROM hotels WHERE 1=1";
     const params = [];
     let paramIndex = 1;
 
@@ -72,7 +72,7 @@ router.get('/', async (req, res) => {
     const result = await pool.query(query, params);
 
     // Get total count
-    let countQuery = 'SELECT COUNT(*) FROM hotels WHERE 1=1';
+    let countQuery = "SELECT COUNT(*) FROM hotels WHERE 1=1";
     const countParams = [];
     let countParamIndex = 1;
 
@@ -102,8 +102,8 @@ router.get('/', async (req, res) => {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     };
 
     // Cache the result
@@ -111,13 +111,13 @@ router.get('/', async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    console.error('Get hotels error:', error);
-    res.status(500).json({ error: 'Failed to fetch hotels' });
+    console.error("Get hotels error:", error);
+    res.status(500).json({ error: "Failed to fetch hotels" });
   }
 });
 
 // Get hotel by ID
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const cacheKey = `hotel:${id}`;
@@ -129,10 +129,10 @@ router.get('/:id', async (req, res) => {
       return res.json(JSON.parse(cached));
     }
 
-    const result = await pool.query('SELECT * FROM hotels WHERE id = $1', [id]);
+    const result = await pool.query("SELECT * FROM hotels WHERE id = $1", [id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Hotel not found' });
+      return res.status(404).json({ error: "Hotel not found" });
     }
 
     const hotel = result.rows[0];
@@ -142,52 +142,70 @@ router.get('/:id', async (req, res) => {
 
     res.json({ hotel });
   } catch (error) {
-    console.error('Get hotel error:', error);
-    res.status(500).json({ error: 'Failed to fetch hotel' });
+    console.error("Get hotel error:", error);
+    res.status(500).json({ error: "Failed to fetch hotel" });
   }
 });
 
 // Create new hotel
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { error, value } = hotelSchema.validate(req.body);
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const { name, description, address, city, country, rating, amenities, images } = value;
+    const {
+      name,
+      description,
+      address,
+      city,
+      country,
+      rating,
+      amenities,
+      images,
+    } = value;
 
     const result = await pool.query(
       `INSERT INTO hotels (name, description, address, city, country, rating, amenities, images) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
        RETURNING *`,
-      [name, description, address, city, country, rating || 0, JSON.stringify(amenities || []), JSON.stringify(images || [])]
+      [
+        name,
+        description,
+        address,
+        city,
+        country,
+        rating || 0,
+        JSON.stringify(amenities || []),
+        JSON.stringify(images || []),
+      ],
     );
 
     // Invalidate cache
     const redis = getRedisClient();
-    const keys = await redis.keys('hotels:*');
+    const keys = await redis.keys("hotels:*");
     if (keys.length > 0) {
       await redis.del(keys);
     }
 
     res.status(201).json({
-      message: 'Hotel created successfully',
-      hotel: result.rows[0]
+      message: "Hotel created successfully",
+      hotel: result.rows[0],
     });
   } catch (error) {
-    console.error('Create hotel error:', error);
-    res.status(500).json({ error: 'Failed to create hotel' });
+    console.error("Create hotel error:", error);
+    res.status(500).json({ error: "Failed to create hotel" });
   }
 });
 
 // Get rooms for a hotel
-router.get('/:id/rooms', async (req, res) => {
+router.get("/:id/rooms", async (req, res) => {
   try {
     const { id } = req.params;
     const { roomType, minPrice, maxPrice, available } = req.query;
 
-    const cacheKey = `hotel:${id}:rooms:${roomType || 'all'}:${minPrice || 'all'}:${maxPrice || 'all'}:${available || 'all'}`;
+    const cacheKey = `hotel:${id}:rooms:${roomType || "all"}:${minPrice || "all"}:${maxPrice || "all"}:${available || "all"}`;
 
     // Check cache
     const redis = getRedisClient();
@@ -196,7 +214,7 @@ router.get('/:id/rooms', async (req, res) => {
       return res.json(JSON.parse(cached));
     }
 
-    let query = 'SELECT * FROM rooms WHERE hotel_id = $1';
+    let query = "SELECT * FROM rooms WHERE hotel_id = $1";
     const params = [id];
     let paramIndex = 2;
 
@@ -218,11 +236,11 @@ router.get('/:id/rooms', async (req, res) => {
       paramIndex++;
     }
 
-    if (available === 'true') {
+    if (available === "true") {
       query += ` AND is_available = true`;
     }
 
-    query += ' ORDER BY price_per_night ASC';
+    query += " ORDER BY price_per_night ASC";
 
     const result = await pool.query(query, params);
 
@@ -233,28 +251,47 @@ router.get('/:id/rooms', async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    console.error('Get rooms error:', error);
-    res.status(500).json({ error: 'Failed to fetch rooms' });
+    console.error("Get rooms error:", error);
+    res.status(500).json({ error: "Failed to fetch rooms" });
   }
 });
 
 // Create room for a hotel
-router.post('/:id/rooms', async (req, res) => {
+router.post("/:id/rooms", async (req, res) => {
   try {
     const { id } = req.params;
     const { error, value } = roomSchema.validate(req.body);
-    
+
     if (error) {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const { roomNumber, roomType, description, pricePerNight, capacity, amenities, images, isAvailable } = value;
+    const {
+      roomNumber,
+      roomType,
+      description,
+      pricePerNight,
+      capacity,
+      amenities,
+      images,
+      isAvailable,
+    } = value;
 
     const result = await pool.query(
       `INSERT INTO rooms (hotel_id, room_number, room_type, description, price_per_night, capacity, amenities, images, is_available) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
        RETURNING *`,
-      [id, roomNumber, roomType, description, pricePerNight, capacity, JSON.stringify(amenities || []), JSON.stringify(images || []), isAvailable !== false]
+      [
+        id,
+        roomNumber,
+        roomType,
+        description,
+        pricePerNight,
+        capacity,
+        JSON.stringify(amenities || []),
+        JSON.stringify(images || []),
+        isAvailable !== false,
+      ],
     );
 
     // Invalidate cache
@@ -265,24 +302,27 @@ router.post('/:id/rooms', async (req, res) => {
     }
 
     res.status(201).json({
-      message: 'Room created successfully',
-      room: result.rows[0]
+      message: "Room created successfully",
+      room: result.rows[0],
     });
   } catch (error) {
-    console.error('Create room error:', error);
-    if (error.code === '23505') { // Unique violation
-      res.status(400).json({ error: 'Room number already exists for this hotel' });
+    console.error("Create room error:", error);
+    if (error.code === "23505") {
+      // Unique violation
+      res
+        .status(400)
+        .json({ error: "Room number already exists for this hotel" });
     } else {
-      res.status(500).json({ error: 'Failed to create room' });
+      res.status(500).json({ error: "Failed to create room" });
     }
   }
 });
 
 // Get specific room
-router.get('/:hotelId/rooms/:roomId', async (req, res) => {
+router.get("/:hotelId/rooms/:roomId", async (req, res) => {
   try {
     const { hotelId, roomId } = req.params;
-    
+
     const cacheKey = `hotel:${hotelId}:room:${roomId}`;
 
     // Check cache
@@ -293,12 +333,12 @@ router.get('/:hotelId/rooms/:roomId', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT * FROM rooms WHERE id = $1 AND hotel_id = $2',
-      [roomId, hotelId]
+      "SELECT * FROM rooms WHERE id = $1 AND hotel_id = $2",
+      [roomId, hotelId],
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Room not found' });
+      return res.status(404).json({ error: "Room not found" });
     }
 
     const room = result.rows[0];
@@ -308,9 +348,9 @@ router.get('/:hotelId/rooms/:roomId', async (req, res) => {
 
     res.json({ room });
   } catch (error) {
-    console.error('Get room error:', error);
-    res.status(500).json({ error: 'Failed to fetch room' });
+    console.error("Get room error:", error);
+    res.status(500).json({ error: "Failed to fetch room" });
   }
 });
 
-module.exports = router;
+export default router;

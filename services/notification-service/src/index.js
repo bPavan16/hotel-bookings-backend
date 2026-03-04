@@ -1,11 +1,12 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import { initKafka, startConsumer } from './config/kafka.js';
+import notificationRoutes from './routes/notification.routes.js';
 
-const { initKafka, startConsumer } = require('./config/kafka');
-const notificationRoutes = require('./routes/notification.routes');
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3005;

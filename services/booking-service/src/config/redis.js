@@ -1,4 +1,4 @@
-const redis = require('redis');
+import redis from 'redis';
 
 let redisClient;
 
@@ -28,7 +28,7 @@ function getRedisClient() {
   return redisClient;
 }
 
-module.exports = {
+export {
   connectRedis,
   getRedisClient
 };

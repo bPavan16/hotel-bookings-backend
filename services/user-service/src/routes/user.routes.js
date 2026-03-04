@@ -1,7 +1,7 @@
-const express = require('express');
-const { pool } = require('../config/database');
-const { authenticate } = require('../middleware/auth');
-const { getRedisClient } = require('../config/redis');
+import express from 'express';
+import { pool } from '../config/database.js';
+import { authenticate } from '../middleware/auth.js';
+import { getRedisClient } from '../config/redis.js';
 
 const router = express.Router();
 
@@ -141,4 +141,4 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

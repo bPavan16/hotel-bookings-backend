@@ -1,5 +1,5 @@
-const { Kafka } = require('kafkajs');
-const { pool } = require('./database');
+import { Kafka } from 'kafkajs';
+import { pool } from './database.js';
 
 let kafka;
 let producer;
@@ -126,7 +126,7 @@ async function disconnectKafka() {
   }
 }
 
-module.exports = {
+export {
   initKafka,
   publishEvent,
   startConsumer,

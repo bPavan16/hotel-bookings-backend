@@ -1,4 +1,4 @@
-const { Pool } = require('pg');
+import { Pool } from 'pg';
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -31,7 +31,7 @@ async function testConnection() {
   }
 }
 
-module.exports = {
+export {
   pool,
   connectDatabase,
   testConnection

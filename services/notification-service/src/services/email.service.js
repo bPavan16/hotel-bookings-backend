@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
 let transporter;
 
@@ -90,7 +90,7 @@ async function sendBookingCancellation({ email, bookingId }) {
   return await sendEmail({ to: email, subject, html });
 }
 
-module.exports = {
+export {
   initializeEmailService,
   sendEmail,
   sendBookingConfirmation,

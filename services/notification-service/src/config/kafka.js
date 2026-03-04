@@ -1,9 +1,9 @@
-const { Kafka } = require('kafkajs');
-const { 
+import { Kafka } from 'kafkajs';
+import { 
   sendBookingConfirmation, 
   sendPaymentConfirmation, 
   sendBookingCancellation 
-} = require('../services/email.service');
+} from '../services/email.service.js';
 
 let kafka;
 let consumer;
@@ -127,7 +127,7 @@ async function disconnectKafka() {
   }
 }
 
-module.exports = {
+export {
   initKafka,
   startConsumer,
   disconnectKafka

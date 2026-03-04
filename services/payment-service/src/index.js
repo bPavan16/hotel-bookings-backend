@@ -1,12 +1,13 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import paymentRoutes from './routes/payment.routes.js';
+import { connectDatabase, testConnection } from './config/database.js';
+import { initKafka, startConsumer } from './config/kafka.js';
 
-const paymentRoutes = require('./routes/payment.routes');
-const { connectDatabase, testConnection } = require('./config/database');
-const { initKafka, startConsumer } = require('./config/kafka');
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3004;

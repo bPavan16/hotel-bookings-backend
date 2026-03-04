@@ -1,8 +1,8 @@
-const express = require('express');
-const Joi = require('joi');
-const { pool } = require('../config/database');
-const { publishEvent } = require('../config/kafka');
-const { getRedisClient } = require('../config/redis');
+import express from 'express';
+import Joi from 'joi';
+import { pool } from '../config/database.js';
+import { publishEvent } from '../config/kafka.js';
+import { getRedisClient } from '../config/redis.js';
 
 const router = express.Router();
 
@@ -289,4 +289,4 @@ router.put('/:id/cancel', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

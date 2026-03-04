@@ -1,13 +1,14 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import bookingRoutes from './routes/booking.routes.js';
+import { connectDatabase, testConnection } from './config/database.js';
+import { connectRedis } from './config/redis.js';
+import { initKafka } from './config/kafka.js';
 
-const bookingRoutes = require('./routes/booking.routes');
-const { connectDatabase, testConnection } = require('./config/database');
-const { connectRedis } = require('./config/redis');
-const { initKafka } = require('./config/kafka');
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3003;

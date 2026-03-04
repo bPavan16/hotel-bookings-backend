@@ -1,12 +1,13 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import hotelRoutes from './routes/hotel.routes.js';
+import { connectDatabase, testConnection } from './config/database.js';
+import { connectRedis } from './config/redis.js';
 
-const hotelRoutes = require('./routes/hotel.routes');
-const { connectDatabase, testConnection } = require('./config/database');
-const { connectRedis } = require('./config/redis');
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3002;

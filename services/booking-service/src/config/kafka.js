@@ -1,4 +1,4 @@
-const { Kafka } = require('kafkajs');
+import { Kafka } from 'kafkajs';
 
 let kafka;
 let producer;
@@ -10,8 +10,8 @@ async function initKafka() {
       brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
       retry: {
         initialRetryTime: 100,
-        retries: 8
-      }
+        retries: 8,
+      },
     });
 
     producer = kafka.producer();
@@ -35,9 +35,9 @@ async function publishEvent(topic, message) {
         {
           key: message.id?.toString() || Date.now().toString(),
           value: JSON.stringify(message),
-          timestamp: Date.now().toString()
-        }
-      ]
+          timestamp: Date.now().toString(),
+        },
+      ],
     });
 
     console.log(`Published event to ${topic}:`, message);
@@ -53,8 +53,8 @@ async function disconnectKafka() {
   }
 }
 
-module.exports = {
+export {
   initKafka,
   publishEvent,
-  disconnectKafka
+  disconnectKafka,
 };
