@@ -1,63 +1,78 @@
-import express from 'express';
-import Joi from 'joi';
-import { pool } from '../config/database.js';
-import { publishEvent } from '../config/kafka.js';
-import { getRedisClient } from '../config/redis.js';
+import express from "express";
+import Joi from "joi";
+import { Op } from "sequelize";
+import { sequelize, Room, Booking, Hotel } from "../config/database.js";
+import { publishEvent } from "../config/kafka.js";
+import { getRedisClient } from "../config/redis.js";
 
 const router = express.Router();
 
 const bookingSchema = Joi.object({
   userId: Joi.number().integer().positive().required(),
   roomId: Joi.number().integer().positive().required(),
-  checkInDate: Joi.date().iso().min('now').required(),
-  checkOutDate: Joi.date().iso().greater(Joi.ref('checkInDate')).required(),
+  checkInDate: Joi.date().iso().min("now").required(),
+  checkOutDate: Joi.date().iso().greater(Joi.ref("checkInDate")).required(),
   numGuests: Joi.number().integer().positive().required(),
-  specialRequests: Joi.string().optional()
+  specialRequests: Joi.string().optional(),
 });
 
-// Create new booking
-router.post('/', async (req, res) => {
-  const client = await pool.connect();
-  
+// -- POST /  (create booking) --------------------------------------------------
+router.post("/", async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { error, value } = bookingSchema.validate(req.body);
     if (error) {
+      await t.rollback();
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const { userId, roomId, checkInDate, checkOutDate, numGuests, specialRequests } = value;
+    const {
+      userId,
+      roomId,
+      checkInDate,
+      checkOutDate,
+      numGuests,
+      specialRequests,
+    } = value;
 
-    await client.query('BEGIN');
-
-    // Check if room exists and is available
-    const roomResult = await client.query(
-      'SELECT * FROM rooms WHERE id = $1 AND is_available = true',
-      [roomId]
-    );
-
-    if (roomResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Room not found or not available' });
+    // Check room existence and availability
+    const room = await Room.findOne({
+      where: { id: roomId, is_available: true },
+      transaction: t,
+    });
+    if (!room) {
+      await t.rollback();
+      return res.status(404).json({ error: "Room not found or not available" });
     }
 
-    const room = roomResult.rows[0];
-
     // Check for conflicting bookings
-    const conflictResult = await client.query(
-      `SELECT id FROM bookings 
-       WHERE room_id = $1 
-       AND status NOT IN ('cancelled', 'completed')
-       AND (
-         (check_in_date <= $2 AND check_out_date > $2) OR
-         (check_in_date < $3 AND check_out_date >= $3) OR
-         (check_in_date >= $2 AND check_out_date <= $3)
-       )`,
-      [roomId, checkInDate, checkOutDate]
-    );
+    const conflict = await Booking.findOne({
+      where: {
+        room_id: roomId,
+        status: { [Op.notIn]: ["cancelled", "completed"] },
+        [Op.or]: [
+          {
+            check_in_date: { [Op.lte]: checkInDate },
+            check_out_date: { [Op.gt]: checkInDate },
+          },
+          {
+            check_in_date: { [Op.lt]: checkOutDate },
+            check_out_date: { [Op.gte]: checkOutDate },
+          },
+          {
+            check_in_date: { [Op.gte]: checkInDate },
+            check_out_date: { [Op.lte]: checkOutDate },
+          },
+        ],
+      },
+      transaction: t,
+    });
 
-    if (conflictResult.rows.length > 0) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ error: 'Room is not available for selected dates' });
+    if (conflict) {
+      await t.rollback();
+      return res
+        .status(409)
+        .json({ error: "Room is not available for selected dates" });
     }
 
     // Calculate total price
@@ -66,20 +81,24 @@ router.post('/', async (req, res) => {
     const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
     const totalPrice = nights * parseFloat(room.price_per_night);
 
-    // Create booking
-    const bookingResult = await client.query(
-      `INSERT INTO bookings (user_id, room_id, check_in_date, check_out_date, total_price, num_guests, special_requests, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') 
-       RETURNING *`,
-      [userId, roomId, checkInDate, checkOutDate, totalPrice, numGuests, specialRequests]
+    const booking = await Booking.create(
+      {
+        user_id: userId,
+        room_id: roomId,
+        check_in_date: checkInDate,
+        check_out_date: checkOutDate,
+        total_price: totalPrice,
+        num_guests: numGuests,
+        special_requests: specialRequests,
+        status: "pending",
+      },
+      { transaction: t },
     );
 
-    await client.query('COMMIT');
+    await t.commit();
 
-    const booking = bookingResult.rows[0];
-
-    // Publish booking created event to Kafka
-    await publishEvent('booking-created', {
+    // Publish event
+    await publishEvent("booking-created", {
       id: booking.id,
       userId: booking.user_id,
       roomId: booking.room_id,
@@ -88,7 +107,7 @@ router.post('/', async (req, res) => {
       totalPrice: booking.total_price,
       numGuests: booking.num_guests,
       status: booking.status,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     // Invalidate cache
@@ -96,7 +115,7 @@ router.post('/', async (req, res) => {
     await redis.del(`user:${userId}:bookings`);
 
     res.status(201).json({
-      message: 'Booking created successfully',
+      message: "Booking created successfully",
       booking: {
         id: booking.id,
         userId: booking.user_id,
@@ -106,186 +125,155 @@ router.post('/', async (req, res) => {
         totalPrice: booking.total_price,
         numGuests: booking.num_guests,
         status: booking.status,
-        nights
-      }
+        nights,
+      },
     });
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Create booking error:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
-  } finally {
-    client.release();
+    await t.rollback();
+    console.error("Create booking error:", error);
+    res.status(500).json({ error: "Failed to create booking" });
   }
 });
 
-// Get all bookings for a user
-router.get('/', async (req, res) => {
+// -- GET /  (list bookings for a user) ----------------------------------------
+router.get("/", async (req, res) => {
   try {
     const { userId, status, page = 1, limit = 10 } = req.query;
+    if (!userId) return res.status(400).json({ error: "userId is required" });
 
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
-
-    const cacheKey = `user:${userId}:bookings:${status || 'all'}:${page}:${limit}`;
-
-    // Check cache
+    const cacheKey = `user:${userId}:bookings:${status || "all"}:${page}:${limit}`;
     const redis = getRedisClient();
     const cached = await redis.get(cacheKey);
-    if (cached) {
-      return res.json(JSON.parse(cached));
-    }
+    if (cached) return res.json(JSON.parse(cached));
 
-    let query = `
-      SELECT b.*, r.room_number, r.room_type, r.price_per_night, h.name as hotel_name, h.city, h.country
-      FROM bookings b
-      JOIN rooms r ON b.room_id = r.id
-      JOIN hotels h ON r.hotel_id = h.id
-      WHERE b.user_id = $1
-    `;
-    const params = [userId];
-    let paramIndex = 2;
+    const where = { user_id: userId };
+    if (status) where.status = status;
 
-    if (status) {
-      query += ` AND b.status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
-    }
-
-    query += ` ORDER BY b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, (page - 1) * limit);
-
-    const result = await pool.query(query, params);
+    const bookings = await Booking.findAll({
+      where,
+      include: [
+        {
+          model: Room,
+          as: "room",
+          attributes: ["room_number", "room_type", "price_per_night"],
+          include: [
+            {
+              model: Hotel,
+              as: "hotel",
+              attributes: ["name", "city", "country"],
+            },
+          ],
+        },
+      ],
+      order: [["created_at", "DESC"]],
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit),
+    });
 
     const response = {
-      bookings: result.rows,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit)
-      }
+      bookings,
+      pagination: { page: parseInt(page), limit: parseInt(limit) },
     };
 
-    // Cache the result
     await redis.setEx(cacheKey, 300, JSON.stringify(response));
-
     res.json(response);
   } catch (error) {
-    console.error('Get bookings error:', error);
-    res.status(500).json({ error: 'Failed to fetch bookings' });
+    console.error("Get bookings error:", error);
+    res.status(500).json({ error: "Failed to fetch bookings" });
   }
 });
 
-// Get booking by ID
-router.get('/:id', async (req, res) => {
+// -- GET /:id ------------------------------------------------------------------
+router.get("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
+    const booking = await Booking.findByPk(req.params.id, {
+      include: [
+        {
+          model: Room,
+          as: "room",
+          attributes: ["room_number", "room_type", "price_per_night"],
+          include: [
+            {
+              model: Hotel,
+              as: "hotel",
+              attributes: ["name", "address", "city", "country"],
+            },
+          ],
+        },
+      ],
+    });
 
-    const result = await pool.query(
-      `SELECT b.*, r.room_number, r.room_type, r.price_per_night, h.name as hotel_name, h.address, h.city, h.country
-       FROM bookings b
-       JOIN rooms r ON b.room_id = r.id
-       JOIN hotels h ON r.hotel_id = h.id
-       WHERE b.id = $1`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
-
-    res.json({ booking: result.rows[0] });
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
+    res.json({ booking });
   } catch (error) {
-    console.error('Get booking error:', error);
-    res.status(500).json({ error: 'Failed to fetch booking' });
+    console.error("Get booking error:", error);
+    res.status(500).json({ error: "Failed to fetch booking" });
   }
 });
 
-// Update booking status
-router.put('/:id/status', async (req, res) => {
+// -- PUT /:id/status -----------------------------------------------------------
+router.put("/:id/status", async (req, res) => {
   try {
-    const { id } = req.params;
     const { status } = req.body;
-
-    if (!['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
+    if (!["pending", "confirmed", "cancelled", "completed"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
     }
 
-    const result = await pool.query(
-      `UPDATE bookings 
-       SET status = $1, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $2 
-       RETURNING *`,
-      [status, id]
-    );
+    const booking = await Booking.findByPk(req.params.id);
+    if (!booking) return res.status(404).json({ error: "Booking not found" });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
+    await booking.update({ status });
 
-    const booking = result.rows[0];
-
-    // Publish status update event
-    await publishEvent('booking-status-updated', {
+    await publishEvent("booking-status-updated", {
       id: booking.id,
       userId: booking.user_id,
       roomId: booking.room_id,
       status: booking.status,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
-    // Invalidate cache
     const redis = getRedisClient();
     await redis.del(`user:${booking.user_id}:bookings`);
 
-    res.json({
-      message: 'Booking status updated successfully',
-      booking
-    });
+    res.json({ message: "Booking status updated successfully", booking });
   } catch (error) {
-    console.error('Update booking status error:', error);
-    res.status(500).json({ error: 'Failed to update booking status' });
+    console.error("Update booking status error:", error);
+    res.status(500).json({ error: "Failed to update booking status" });
   }
 });
 
-// Cancel booking
-router.put('/:id/cancel', async (req, res) => {
+// -- PUT /:id/cancel -----------------------------------------------------------
+router.put("/:id/cancel", async (req, res) => {
   try {
-    const { id } = req.params;
+    const booking = await Booking.findOne({
+      where: {
+        id: req.params.id,
+        status: { [Op.in]: ["pending", "confirmed"] },
+      },
+    });
 
-    const result = await pool.query(
-      `UPDATE bookings 
-       SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $1 AND status IN ('pending', 'confirmed')
-       RETURNING *`,
-      [id]
-    );
+    if (!booking)
+      return res
+        .status(404)
+        .json({ error: "Booking not found or cannot be cancelled" });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found or cannot be cancelled' });
-    }
+    await booking.update({ status: "cancelled" });
 
-    const booking = result.rows[0];
-
-    // Publish cancellation event
-    await publishEvent('booking-cancelled', {
+    await publishEvent("booking-cancelled", {
       id: booking.id,
       userId: booking.user_id,
       roomId: booking.room_id,
       totalPrice: booking.total_price,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
-    // Invalidate cache
     const redis = getRedisClient();
     await redis.del(`user:${booking.user_id}:bookings`);
 
-    res.json({
-      message: 'Booking cancelled successfully',
-      booking
-    });
+    res.json({ message: "Booking cancelled successfully", booking });
   } catch (error) {
-    console.error('Cancel booking error:', error);
-    res.status(500).json({ error: 'Failed to cancel booking' });
+    console.error("Cancel booking error:", error);
+    res.status(500).json({ error: "Failed to cancel booking" });
   }
 });
 

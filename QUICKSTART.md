@@ -1,6 +1,7 @@
 # Quick Start Guide
 
 ## Prerequisites
+
 - Docker and Docker Compose installed
 - At least 4GB of RAM available for Docker
 - Ports 3000-3005, 5432, 6379, 9092, 2181 available
@@ -8,12 +9,14 @@
 ## Starting the Application
 
 ### Option 1: Using the start script (Linux/Mac)
+
 ```bash
 chmod +x start.sh
 ./start.sh
 ```
 
 ### Option 2: Manual Docker Compose
+
 ```bash
 # Start all services
 docker-compose up -d
@@ -28,11 +31,13 @@ docker-compose down
 ## Testing the API
 
 ### 1. Health Check
+
 ```bash
 curl http://localhost:3000/health
 ```
 
 ### 2. Register a User
+
 ```bash
 curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
@@ -46,6 +51,7 @@ curl -X POST http://localhost:3000/api/auth/register \
 ```
 
 ### 3. Login
+
 ```bash
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -58,6 +64,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 Save the token from the response!
 
 ### 4. Create a Hotel
+
 ```bash
 curl -X POST http://localhost:3000/api/hotels \
   -H "Content-Type: application/json" \
@@ -74,6 +81,7 @@ curl -X POST http://localhost:3000/api/hotels \
 ```
 
 ### 5. Create a Room
+
 ```bash
 curl -X POST http://localhost:3000/api/hotels/1/rooms \
   -H "Content-Type: application/json" \
@@ -89,6 +97,7 @@ curl -X POST http://localhost:3000/api/hotels/1/rooms \
 ```
 
 ### 6. Create a Booking
+
 ```bash
 curl -X POST http://localhost:3000/api/bookings \
   -H "Content-Type: application/json" \
@@ -102,6 +111,7 @@ curl -X POST http://localhost:3000/api/bookings \
 ```
 
 ### 7. Process Payment
+
 ```bash
 curl -X POST http://localhost:3000/api/payments \
   -H "Content-Type: application/json" \
@@ -139,11 +149,13 @@ docker-compose logs -f kafka
 ## Database Access
 
 ### PostgreSQL
+
 ```bash
 docker exec -it hotel-postgres psql -U hoteluser -d hotel_db
 ```
 
 ### Redis
+
 ```bash
 docker exec -it hotel-redis redis-cli
 ```
@@ -151,6 +163,7 @@ docker exec -it hotel-redis redis-cli
 ## Common Issues
 
 ### Port Already in Use
+
 ```bash
 # Find process using a port
 lsof -i :3000
@@ -160,12 +173,14 @@ kill -9 <PID>
 ```
 
 ### Reset Everything
+
 ```bash
 docker-compose down -v
 docker-compose up --build -d
 ```
 
 ### Check Service Status
+
 ```bash
 docker-compose ps
 ```
@@ -173,27 +188,27 @@ docker-compose ps
 ## Architecture Overview
 
 ```
-┌─────────────┐
+┌-------------┐
 │   Client    │
-└──────┬──────┘
+└------┬------┘
        │
        ▼
-┌─────────────────┐
+┌-----------------┐
 │  API Gateway    │ :3000
-└────────┬────────┘
+└--------┬--------┘
          │
-    ┌────┴────┬────────┬──────────┬─────────┐
+    ┌----┴----┬--------┬----------┬---------┐
     ▼         ▼        ▼          ▼         ▼
-┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+┌--------┐ ┌--------┐ ┌--------┐ ┌--------┐ ┌--------┐
 │  User  │ │ Hotel  │ │Booking │ │Payment │ │Notific.│
 │Service │ │Service │ │Service │ │Service │ │Service │
-└───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘
+└---┬----┘ └---┬----┘ └---┬----┘ └---┬----┘ └---┬----┘
     │          │          │          │          │
-    └────┬─────┴──────┬───┴────┬─────┴──────────┘
+    └----┬-----┴------┬---┴----┬-----┴----------┘
          │            │        │
-    ┌────▼────┐  ┌────▼────┐  ┌────▼────┐
+    ┌----▼----┐  ┌----▼----┐  ┌----▼----┐
     │PostgreSQL│  │  Redis  │  │  Kafka  │
-    └─────────┘  └─────────┘  └─────────┘
+    └---------┘  └---------┘  └---------┘
 ```
 
 ## Next Steps

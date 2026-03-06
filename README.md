@@ -5,6 +5,7 @@ A complete hotel booking system with microservices backend and modern React fron
 ## 🏗️ Architecture
 
 ### Backend (Microservices)
+
 - **API Gateway** (Port 3000) - Single entry point for all client requests
 - **User Service** (Port 3001) - User authentication and management
 - **Hotel Service** (Port 3002) - Hotel and room management
@@ -13,9 +14,11 @@ A complete hotel booking system with microservices backend and modern React fron
 - **Notification Service** (Port 3005) - Email/SMS notifications
 
 ### Frontend
+
 - **React App** (Port 5173) - Modern SPA with Vite, Tailwind CSS
 
 ### Infrastructure
+
 - **PostgreSQL** (Port 5432) - Primary database
 - **Redis** (Port 6379) - Caching layer
 - **Kafka + Zookeeper** (Ports 9092, 2181) - Event streaming
@@ -56,6 +59,7 @@ npm run dev
 ### Option 2: Manual Setup
 
 **1. Start Backend Services**
+
 ```bash
 # Configure environment
 cp .env.example .env
@@ -68,6 +72,7 @@ docker-compose ps
 ```
 
 **2. Start Frontend**
+
 ```bash
 cd frontend
 npm install
@@ -100,15 +105,19 @@ npm run dev
 ## 📸 Screenshots
 
 ### Home Page
+
 Modern landing page with hero section and features
 
 ### Hotel Listing
+
 Browse hotels with search and filter options
 
 ### Booking Flow
+
 Seamless booking experience with date selection and payment
 
 ### User Dashboard
+
 Manage bookings and profile in one place
 
 ## 🛠️ Development
@@ -150,53 +159,56 @@ cd frontend && npm run dev
 ## 🔧 Technology Stack
 
 ### Backend
+
 - **Runtime**: Node.js 18
 - **Framework**: Express.js
 - **Database**: PostgreSQL 15
 - **Cache**: Redis 7
 - **Message Broker**: Apache Kafka 7.5
 - **Authentication**: JWT (jsonwebtoken)
-- *📁 Project Structure
+- \*📁 Project Structure
 
 ```
 adv-backend/
-├── services/                    # Backend microservices
-│   ├── api-gateway/            # API Gateway service
-│   ├── user-service/           # User & Auth service
-│   ├── hotel-service/          # Hotel management
-│   ├── booking-service/        # Booking management
-│   ├── payment-service/        # Payment processing
-│   └── notification-service/   # Email notifications
-├── frontend/                    # React frontend
-│   ├── src/
-│   │   ├── components/         # Reusable components
-│   │   ├── pages/              # Page components
-│   │   ├── context/            # Context providers
-│   │   └── services/           # API services
-│   ├── public/
-│   └── package.json
-├── docker-compose.yml          # Docker services config
-├── init-db.sql                 # Database initialization
-├── setup.sh                    # Automated setup script
-├── start.sh                    # Backend startup script
-├── .env                        # Environment variables
-├── QUICKSTART.md              # Quick start guide
-├── ARCHITECTURE.md            # Architecture docs
-└── README.md                  # This file
+├-- services/                    # Backend microservices
+│   ├-- api-gateway/            # API Gateway service
+│   ├-- user-service/           # User & Auth service
+│   ├-- hotel-service/          # Hotel management
+│   ├-- booking-service/        # Booking management
+│   ├-- payment-service/        # Payment processing
+│   └-- notification-service/   # Email notifications
+├-- frontend/                    # React frontend
+│   ├-- src/
+│   │   ├-- components/         # Reusable components
+│   │   ├-- pages/              # Page components
+│   │   ├-- context/            # Context providers
+│   │   └-- services/           # API services
+│   ├-- public/
+│   └-- package.json
+├-- docker-compose.yml          # Docker services config
+├-- init-db.sql                 # Database initialization
+├-- setup.sh                    # Automated setup script
+├-- start.sh                    # Backend startup script
+├-- .env                        # Environment variables
+├-- QUICKSTART.md              # Quick start guide
+├-- ARCHITECTURE.md            # Architecture docs
+└-- README.md                  # This file
 ```
+
 adv-backend/
-├── services/
-│   ├── api-gateway/
-│   ├── user-service/
-│   ├── hotel-service/
-│   ├── booking-service/
-│   ├── payment-service/
-│   └── notification-service/
-├── docker-compose.yml
-├── init-db.sql
-├── .env
-└── README.md
-```
+├-- services/
+│ ├-- api-gateway/
+│ ├-- user-service/
+│ ├-- hotel-service/
+│ ├-- booking-service/
+│ ├-- payment-service/
+│ └-- notification-service/
+├-- docker-compose.yml
+├-- init-db.sql
+├-- .env
+└-- README.md
+
+````
 
 ## Service Communication
 
@@ -217,7 +229,7 @@ adv-backend/
 docker-compose exec api-gateway npm test
 docker-compose exec user-service npm test
 # ... repeat for other services
-```
+````
 
 ## Monitoring
 

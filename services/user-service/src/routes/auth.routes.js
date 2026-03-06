@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import Joi from "joi";
-import { pool } from "../config/database.js";
+import { User } from "../config/database.js";
 import { generateToken } from "../middleware/auth.js";
 import { getRedisClient } from "../config/redis.js";
 
@@ -21,38 +21,28 @@ const loginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
-// Register new user
+// -- Register ------------------------------------------------------------------
 router.post("/register", async (req, res) => {
   try {
     const { error, value } = registerSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ error: error.details[0].message });
-    }
+    if (error) return res.status(400).json({ error: error.details[0].message });
 
     const { email, password, firstName, lastName, phone } = value;
 
     // Check if user already exists
-    const existingUser = await pool.query(
-      "SELECT id FROM users WHERE email = $1",
-      [email],
-    );
+    const existing = await User.findOne({ where: { email } });
+    if (existing) return res.status(400).json({ error: "User already exists" });
 
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: "User already exists" });
-    }
-
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const result = await pool.query(
-      `INSERT INTO users (email, password, first_name, last_name, phone) 
-      VALUES ($1, $2, $3, $4, $5) 
-      RETURNING id, email, first_name, last_name, phone, role, created_at`,
-      [email, hashedPassword, firstName, lastName, phone],
-    );
+    const user = await User.create({
+      email,
+      password: hashedPassword,
+      first_name: firstName,
+      last_name: lastName,
+      phone,
+    });
 
-    const user = result.rows[0];
     const token = generateToken({
       id: user.id,
       email: user.email,
@@ -77,34 +67,21 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Login
+// -- Login ---------------------------------------------------------------------
 router.post("/login", async (req, res) => {
   try {
     const { error, value } = loginSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ error: error.details[0].message });
-    }
+    if (error) return res.status(400).json({ error: error.details[0].message });
 
     const { email, password } = value;
 
-    // Find user
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-
-    const user = result.rows[0];
-
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
+    if (!isValidPassword)
       return res.status(401).json({ error: "Invalid credentials" });
-    }
 
-    // Generate token
     const token = generateToken({
       id: user.id,
       email: user.email,
@@ -115,12 +92,8 @@ router.post("/login", async (req, res) => {
     const redis = getRedisClient();
     await redis.setEx(
       `user:${user.id}`,
-      3600, // 1 hour
-      JSON.stringify({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      }),
+      3600,
+      JSON.stringify({ id: user.id, email: user.email, role: user.role }),
     );
 
     res.json({
@@ -140,12 +113,11 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Logout
+// -- Logout --------------------------------------------------------------------
 router.post("/logout", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      // In a production app, you'd want to blacklist the token
       res.json({ message: "Logout successful" });
     } else {
       res.status(400).json({ error: "No token provided" });

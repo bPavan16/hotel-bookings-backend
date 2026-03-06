@@ -1,129 +1,111 @@
-import express from 'express';
-import { pool } from '../config/database.js';
-import { authenticate } from '../middleware/auth.js';
-import { getRedisClient } from '../config/redis.js';
+import express from "express";
+import { User } from "../config/database.js";
+import { authenticate } from "../middleware/auth.js";
+import { getRedisClient } from "../config/redis.js";
 
 const router = express.Router();
 
-// Get user profile (protected)
-router.get('/profile', authenticate, async (req, res) => {
+// -- GET /profile ---------------------------------------------------------------
+router.get("/profile", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Try to get from cache first
+    // Try cache first
     const redis = getRedisClient();
     const cached = await redis.get(`user:${userId}`);
-    
     if (cached) {
-      const user = JSON.parse(cached);
-      return res.json({ user });
+      return res.json({ user: JSON.parse(cached) });
     }
 
-    // If not in cache, get from database
-    const result = await pool.query(
-      'SELECT id, email, first_name, last_name, phone, role, created_at FROM users WHERE id = $1',
-      [userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const user = result.rows[0];
-    
-    // Cache the result
-    await redis.setEx(
-      `user:${userId}`,
-      3600,
-      JSON.stringify({
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        phone: user.phone,
-        role: user.role
-      })
-    );
-
-    res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        phone: user.phone,
-        role: user.role,
-        createdAt: user.created_at
-      }
+    const user = await User.findByPk(userId, {
+      attributes: [
+        "id",
+        "email",
+        "first_name",
+        "last_name",
+        "phone",
+        "role",
+        "created_at",
+      ],
     });
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const payload = {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+      role: user.role,
+    };
+
+    await redis.setEx(`user:${userId}`, 3600, JSON.stringify(payload));
+
+    res.json({ user: { ...payload, createdAt: user.created_at } });
   } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ error: 'Failed to get user profile' });
+    console.error("Get profile error:", error);
+    res.status(500).json({ error: "Failed to get user profile" });
   }
 });
 
-// Update user profile (protected)
-router.put('/profile', authenticate, async (req, res) => {
+// -- PUT /profile ---------------------------------------------------------------
+router.put("/profile", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const { firstName, lastName, phone } = req.body;
 
-    const result = await pool.query(
-      `UPDATE users 
-       SET first_name = COALESCE($1, first_name),
-           last_name = COALESCE($2, last_name),
-           phone = COALESCE($3, phone),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4
-       RETURNING id, email, first_name, last_name, phone, role`,
-      [firstName, lastName, phone, userId]
-    );
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const user = result.rows[0];
+    await user.update({
+      ...(firstName !== undefined && { first_name: firstName }),
+      ...(lastName !== undefined && { last_name: lastName }),
+      ...(phone !== undefined && { phone }),
+    });
 
     // Invalidate cache
     const redis = getRedisClient();
     await redis.del(`user:${userId}`);
 
     res.json({
-      message: 'Profile updated successfully',
+      message: "Profile updated successfully",
       user: {
         id: user.id,
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
         phone: user.phone,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ error: 'Failed to update profile' });
+    console.error("Update profile error:", error);
+    res.status(500).json({ error: "Failed to update profile" });
   }
 });
 
-// Get user by ID (admin only)
-router.get('/:id', authenticate, async (req, res) => {
+// -- GET /:id (admin only) ------------------------------------------------------
+router.get("/:id", authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied' });
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
     }
 
-    const { id } = req.params;
-    const result = await pool.query(
-      'SELECT id, email, first_name, last_name, phone, role, created_at FROM users WHERE id = $1',
-      [id]
-    );
+    const user = await User.findByPk(req.params.id, {
+      attributes: [
+        "id",
+        "email",
+        "first_name",
+        "last_name",
+        "phone",
+        "role",
+        "created_at",
+      ],
+    });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    const user = result.rows[0];
     res.json({
       user: {
         id: user.id,
@@ -132,12 +114,12 @@ router.get('/:id', authenticate, async (req, res) => {
         lastName: user.last_name,
         phone: user.phone,
         role: user.role,
-        createdAt: user.created_at
-      }
+        createdAt: user.created_at,
+      },
     });
   } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ error: 'Failed to get user' });
+    console.error("Get user error:", error);
+    res.status(500).json({ error: "Failed to get user" });
   }
 });
 
