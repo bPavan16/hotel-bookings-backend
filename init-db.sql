@@ -8,8 +8,11 @@ I only use this file to refer the schema as an reference
 so no need to run this file :D
 */
 
+/*
 
 -- Users table
+
+
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -103,3 +106,5 @@ CREATE INDEX idx_bookings_room_id ON bookings(room_id);
 CREATE INDEX idx_bookings_dates ON bookings(check_in_date, check_out_date);
 CREATE INDEX idx_payments_booking_id ON payments(booking_id);
 CREATE INDEX idx_reviews_hotel_id ON reviews(hotel_id);
+
+*/
