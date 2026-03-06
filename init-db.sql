@@ -1,5 +1,14 @@
 -- Initialize database schemas for hotel booking system
 
+/*
+
+This file is used to initialize the database schemas for hotel booking system
+But I shifted from pg to sequelize so this file is not used anymore
+I only use this file to refer the schema as an reference 
+so no need to run this file :D
+*/
+
+
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,

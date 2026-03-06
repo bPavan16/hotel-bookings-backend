@@ -2,10 +2,13 @@
 node_modules/
 */node_modules/
 
-# Environment variables
+# Environment variables (root and all service subdirectories)
 .env
+**/.env
 .env.local
+**/.env.local
 .env.*.local
+**/.env.*.local
 
 # Logs
 logs/

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🏨 Hotel Booking System - Complete Setup"
+echo "Hotel Booking System - Complete Setup"
 echo "=========================================="
 echo ""
 
@@ -13,14 +13,14 @@ NC='\033[0m' # No Color
 # Check if Docker is running
 echo "Checking Docker..."
 if ! docker info > /dev/null 2>&1; then
-    echo -e "${RED}❌ Docker is not running. Please start Docker first.${NC}"
+    echo -e "${RED}ERROR: Docker is not running. Please start Docker first.${NC}"
     exit 1
 fi
-echo -e "${GREEN}✅ Docker is running${NC}"
+echo -e "${GREEN}Docker is running${NC}"
 echo ""
 
 # Backend setup
-echo "📦 Setting up Backend Services..."
+echo "Setting up Backend Services..."
 echo "--------------------------------"
 cd "$(dirname "$0")"
 
@@ -33,7 +33,7 @@ echo "Building and starting backend services..."
 docker-compose up -d --build
 
 echo ""
-echo "⏳ Waiting for services to initialize (30 seconds)..."
+echo "Waiting for services to initialize (30 seconds)..."
 sleep 30
 
 # Check backend health
@@ -41,14 +41,14 @@ echo ""
 echo "Checking backend services..."
 BACKEND_HEALTH=$(curl -s http://localhost:3000/health 2>&1)
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Backend services are healthy${NC}"
+    echo -e "${GREEN}Backend services are healthy${NC}"
 else
-    echo -e "${YELLOW}⚠️  Backend services are starting up...${NC}"
+    echo -e "${YELLOW}WARNING: Backend services are still starting up...${NC}"
 fi
 
 # Frontend setup
 echo ""
-echo "📦 Setting up Frontend..."
+echo "Setting up Frontend..."
 echo "------------------------"
 cd frontend
 
@@ -67,10 +67,10 @@ if [ ! -f ".env" ]; then
 fi
 
 echo ""
-echo -e "${GREEN}✅ Setup Complete!${NC}"
+echo -e "${GREEN}Setup Complete!${NC}"
 echo ""
 echo "=================================================="
-echo "🚀 To start the application:"
+echo "To start the application:"
 echo "=================================================="
 echo ""
 echo "1. Backend is already running at:"
@@ -86,10 +86,10 @@ echo ""
 echo "   Frontend will be at: http://localhost:5173"
 echo ""
 echo "=================================================="
-echo "📊 View backend logs:"
+echo "View backend logs:"
 echo "   docker-compose logs -f"
 echo ""
-echo "🛑 Stop all services:"
+echo "Stop all services:"
 echo "   docker-compose down"
 echo "=================================================="
 echo ""
