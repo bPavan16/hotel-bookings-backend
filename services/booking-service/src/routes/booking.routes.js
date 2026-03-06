@@ -40,6 +40,7 @@ router.post("/", async (req, res) => {
       where: { id: roomId, is_available: true },
       transaction: t,
     });
+    
     if (!room) {
       await t.rollback();
       return res.status(404).json({ error: "Room not found or not available" });
