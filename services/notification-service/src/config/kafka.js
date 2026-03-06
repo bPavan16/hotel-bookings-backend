@@ -1,9 +1,9 @@
-import { Kafka } from 'kafkajs';
-import { 
-  sendBookingConfirmation, 
-  sendPaymentConfirmation, 
-  sendBookingCancellation 
-} from '../services/email.service.js';
+import { Kafka } from "kafkajs";
+import {
+  sendBookingConfirmation,
+  sendPaymentConfirmation,
+  sendBookingCancellation,
+} from "../services/email.service.js";
 
 let kafka;
 let consumer;
@@ -11,57 +11,57 @@ let consumer;
 async function initKafka() {
   try {
     kafka = new Kafka({
-      clientId: 'notification-service',
-      brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
+      clientId: "notification-service",
+      brokers: [process.env.KAFKA_BROKER || "localhost:9092"],
       retry: {
         initialRetryTime: 100,
-        retries: 8
-      }
+        retries: 8,
+      },
     });
 
-    consumer = kafka.consumer({ groupId: 'notification-service-group' });
+    consumer = kafka.consumer({ groupId: "notification-service-group" });
 
-    console.log('Connected to Kafka');
+    console.log("Connected to Kafka");
   } catch (error) {
-    console.error('Kafka connection error:', error);
+    console.error("Kafka connection error:", error);
     throw error;
   }
 }
 
 async function handleNotificationRequest(notification) {
-  console.log('Processing notification:', notification);
-  
+  console.log("Processing notification:", notification);
+
   try {
     const { type, userId, bookingId, message, email, ...data } = notification;
 
     // In a real application, you would fetch user email from user service or database
-    const userEmail = email || 'user@example.com'; // Placeholder
+    const userEmail = email || "user@example.com"; // Placeholder
 
     switch (type) {
-      case 'booking-created':
+      case "booking-created":
         await sendBookingConfirmation({
           email: userEmail,
           bookingId,
           hotelName: data.hotelName,
           checkIn: data.checkInDate,
           checkOut: data.checkOutDate,
-          totalPrice: data.totalPrice
+          totalPrice: data.totalPrice,
         });
         break;
 
-      case 'payment-success':
+      case "payment-success":
         await sendPaymentConfirmation({
           email: userEmail,
           bookingId,
           amount: data.amount,
-          transactionId: data.transactionId
+          transactionId: data.transactionId,
         });
         break;
 
-      case 'booking-cancelled':
+      case "booking-cancelled":
         await sendBookingCancellation({
           email: userEmail,
-          bookingId
+          bookingId,
         });
         break;
 
@@ -69,18 +69,23 @@ async function handleNotificationRequest(notification) {
         console.log(`Unknown notification type: ${type}`);
     }
   } catch (error) {
-    console.error('Error handling notification:', error);
+    console.error("Error handling notification:", error);
   }
 }
 
 async function startConsumer() {
   try {
     await consumer.connect();
-    
+
     // Subscribe to multiple topics
-    await consumer.subscribe({ 
-      topics: ['notification-request', 'booking-created', 'payment-processed', 'booking-cancelled'], 
-      fromBeginning: false 
+    await consumer.subscribe({
+      topics: [
+        "notification-request",
+        "booking-created",
+        "payment-processed",
+        "booking-cancelled",
+      ],
+      fromBeginning: false,
     });
 
     await consumer.run({
@@ -90,33 +95,33 @@ async function startConsumer() {
           console.log(`Received message from ${topic}:`, notification);
 
           // Handle notification based on topic
-          if (topic === 'notification-request') {
+          if (topic === "notification-request") {
             await handleNotificationRequest(notification);
-          } else if (topic === 'booking-created') {
+          } else if (topic === "booking-created") {
             await handleNotificationRequest({
-              type: 'booking-created',
-              ...notification
+              type: "booking-created",
+              ...notification,
             });
-          } else if (topic === 'payment-processed') {
+          } else if (topic === "payment-processed") {
             await handleNotificationRequest({
-              type: 'payment-success',
-              ...notification
+              type: "payment-success",
+              ...notification,
             });
-          } else if (topic === 'booking-cancelled') {
+          } else if (topic === "booking-cancelled") {
             await handleNotificationRequest({
-              type: 'booking-cancelled',
-              ...notification
+              type: "booking-cancelled",
+              ...notification,
             });
           }
         } catch (error) {
-          console.error('Error processing message:', error);
+          console.error("Error processing message:", error);
         }
-      }
+      },
     });
 
-    console.log('Kafka consumer started, listening for notifications');
+    console.log("Kafka consumer started, listening for notifications");
   } catch (error) {
-    console.error('Error starting consumer:', error);
+    console.error("Error starting consumer:", error);
     throw error;
   }
 }
@@ -127,8 +132,4 @@ async function disconnectKafka() {
   }
 }
 
-export {
-  initKafka,
-  startConsumer,
-  disconnectKafka
-};
+export { initKafka, startConsumer, disconnectKafka };
